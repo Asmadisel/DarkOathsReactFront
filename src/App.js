@@ -1,21 +1,27 @@
 // src/App.js
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Articles from './pages/Articles';
 import Bestiary from './pages/Bestiary';
-import Auth from './pages/Auth';
-import './App.css'; // Вы можете создать его позже или удалить
-
-const AuthPage = () => (
-  <div>
-    <h2>Авторизация</h2>
-    <p>Форма входа для хранителей Тайн.</p>
-  </div>
-);
-
+import AuthPage from './pages/Auth';
+import UsersListPage from './pages/UsersListPage';
+import './App.css';
 
 function App() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Функция для проверки статуса авторизации
+  const checkAuthStatus = () => {
+    const sessionId = localStorage.getItem('sessionId');
+    setIsAuthenticated(!!sessionId);
+  };
+
+  // Проверяем статус при первой загрузке
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="app">
@@ -23,7 +29,7 @@ function App() {
           <img src="/DarkOaths.png" alt="Логотип Тёмных Троп" className="app-logo" />
         </header>
         
-         <div className="checkbox-control">
+        <div className="checkbox-control">
           <label>
             <input
               type="checkbox"
@@ -33,26 +39,37 @@ function App() {
             Показать полное меню
           </label>
         </div>
-        {/* Навигация */}
+
         <nav className="navigation">
           <ul>
-            {/* Ссылка "Все статьи" всегда видна */}
             <li><Link to="/">Все статьи</Link></li>
-            
-            {/* Ссылка "Авторизация" всегда видна */}
             <li><Link to="/auth">Авторизация</Link></li>
-
-            {/* Ссылка "Бестиарий" видна только если чекбокс отмечен */}
-            {isMenuVisible && <li><Link to="/bestiary">Бестиарий</Link></li>}
+            {isMenuVisible && (
+              <>
+                <li><Link to="/bestiary">Бестиарий</Link></li>
+                {/* Вкладка появляется ТОЛЬКО если пользователь авторизован */}
+                {isAuthenticated && <li><Link to="/users">Пользователи</Link></li>}
+              </>
+            )}
           </ul>
         </nav>
 
-        {/* Контент страниц */}
-        <main className="content">
+        <main>
           <Routes>
             <Route path="/" element={<Articles />} />
             <Route path="/bestiary" element={<Bestiary />} />
-            <Route path="/auth" element={<Auth />} />
+            {/* Передаём функцию checkAuthStatus в AuthPage */}
+            <Route path="/auth" element={<AuthPage onAuthChange={checkAuthStatus} />} />
+            {/* Передаём функцию checkAuthStatus и флаг isAuthenticated в UsersListPage */}
+            <Route 
+              path="/users" 
+              element={
+                <UsersListPage 
+                  isAuthenticated={isAuthenticated} 
+                  onAuthChange={checkAuthStatus} 
+                />
+              } 
+            />
           </Routes>
         </main>
       </div>
