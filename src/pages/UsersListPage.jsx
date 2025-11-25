@@ -1,21 +1,30 @@
 // src/pages/UsersListPage.jsx
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom'; // Используем Link для навигации без перезагрузки
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 
 const UsersListPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const menuRef = useRef(null);
+
+  // Закрываем меню при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setSelectedUser(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchUsers = async () => {
       const sessionId = localStorage.getItem('sessionId');
-      
-      // --- Проверка авторизации ---
       if (!sessionId) {
         setLoading(false);
-        // Не перенаправляем, а просто завершаем выполнение.
-        // Состояние `loading` станет false, и отрендерится сообщение.
         return;
       }
 
@@ -25,7 +34,6 @@ const UsersListPage = () => {
         });
 
         if (response.status === 403) {
-          // Сессия на сервере недействительна, удаляем локальный токен
           localStorage.removeItem('sessionId');
           setLoading(false);
           return;
@@ -36,7 +44,8 @@ const UsersListPage = () => {
         }
 
         const data = await response.json();
-        setUsers(data.Users || []);
+        // Обратите внимание: данные приходят в поле `users`
+        setUsers(data.users || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -45,21 +54,37 @@ const UsersListPage = () => {
     };
 
     fetchUsers();
-  }, []); // Зависимость пуста, запрос идёт только при монтировании
+  }, []);
 
-  // --- Условный рендеринг на основе состояния ---
+  const handleToggleMenu = (user, event) => {
+    event.stopPropagation();
+    setSelectedUser(selectedUser?.id === user.id ? null : user);
+  };
 
-  // Если идёт загрузка
+  const handleDelete = (userId) => {
+    if (window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
+      // Здесь будет логика удаления пользователя (пока заглушка)
+      console.log('Удаление пользователя с ID:', userId);
+      // После успешного удаления обычно фильтруют список:
+      // setUsers(prev => prev.filter(u => u.id !== userId));
+    }
+    setSelectedUser(null);
+  };
+
+  const handleOpen = (userId) => {
+    // Здесь будет логика открытия деталей пользователя
+    console.log('Открытие профиля пользователя с ID:', userId);
+    setSelectedUser(null);
+  };
+
   if (loading) {
     return <h2 className="content">Загрузка списка пользователей...</h2>;
   }
 
-  // Если произошла ошибка при запросе (не связанная с авторизацией)
   if (error) {
     return <h2 className="content auth-error">{error}</h2>;
   }
 
-  // Проверяем авторизацию ПОСЛЕ завершения загрузки
   const sessionId = localStorage.getItem('sessionId');
   if (!sessionId) {
     return (
@@ -73,16 +98,14 @@ const UsersListPage = () => {
     );
   }
 
-  // Если всё хорошо, отображаем таблицу
   return (
     <div className="content">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h2>Список пользователей</h2>
-        {/* Кнопка выхода (опционально, можно вынести в App.js) */}
         <button 
           onClick={() => {
             localStorage.removeItem('sessionId');
-            window.location.reload(); // Простой способ обновить состояние
+            window.location.reload();
           }}
           className="auth-button" 
           style={{ backgroundColor: '#d32f2f' }}
@@ -90,26 +113,105 @@ const UsersListPage = () => {
           Выйти
         </button>
       </div>
-      <table className="users-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Логин</th>
-            <th>Email</th>
-            <th>Дата создания</th>
-          </tr>
-        </thead>
-        <tbody>
+
+      {users.length === 0 ? (
+        <p>Пользователи не найдены.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {users.map(user => (
-            <tr key={user.Id}>
-              <td>{user.Id}</td>
-              <td>{user.Login}</td>
-              <td>{user.Email}</td>
-              <td>{new Date(user.CreatedAt).toLocaleString()}</td>
-            </tr>
+            <div 
+              key={user.id}
+              style={{
+                position: 'relative',
+                padding: '1.25rem',
+                border: '1px solid #e0e0e0',
+                borderRadius: '12px',
+                backgroundColor: '#131111ff',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                transition: 'box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'}
+            >
+              <div>
+                <div><strong>ID:</strong> {user.id}</div>
+                <div><strong>Логин:</strong> {user.login}</div>
+                <div><strong>Email:</strong> {user.email}</div>
+                <div><strong>Дата создания:</strong> {new Date(user.createdAt).toLocaleDateString('ru-RU')}</div>
+              </div>
+              <button 
+                onClick={(e) => handleToggleMenu(user, e)}
+                aria-label="Действия"
+                style={{ 
+                  padding: '0.5rem', 
+                  cursor: 'pointer',
+                  background: '#5e192aff',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px'
+                }}
+              >
+                ⋮
+              </button>
+
+              {/* Контекстное меню */}
+              {selectedUser?.id === user.id && (
+                <div 
+                  ref={menuRef}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '0.5rem',
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    minWidth: '140px',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <button
+                    onClick={() => handleOpen(user.id)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    Открыть
+                  </button>
+                  <hr style={{ margin: 0, borderColor: '#eee' }} />
+                  <button
+                    onClick={() => handleDelete(user.id)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      color: '#d32f2f'
+                    }}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
     </div>
   );
 };
