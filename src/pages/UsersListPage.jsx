@@ -1,218 +1,241 @@
 // src/pages/UsersListPage.jsx
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const UsersListPage = () => {
+const UsersListPage = ({ isAuthenticated, onAuthChange }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedUser, setSelectedUser] = useState(null);
-  const menuRef = useRef(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
 
-  // Закрываем меню при клике вне его
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setSelectedUser(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const sessionId = localStorage.getItem('sessionId');
-      if (!sessionId) {
+    if (!isAuthenticated) navigate('/auth');
+  }, [isAuthenticated, navigate]);
+
+  const fetchUsers = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch('https://localhost:7204/api/users', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 403) {
+        setError('Доступ запрещён. Требуются права администратора.');
         setLoading(false);
         return;
       }
-
-      try {
-        const response = await fetch('https://localhost:7507/api/users', {
-          headers: { 'Authorization': `Bearer ${sessionId}` }
-        });
-
-        if (response.status === 403) {
-          localStorage.removeItem('sessionId');
-          setLoading(false);
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error('Не удалось загрузить данные');
-        }
-
-        const data = await response.json();
-        // Обратите внимание: данные приходят в поле `users`
-        setUsers(data.users || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, []);
-
-  const handleToggleMenu = (user, event) => {
-    event.stopPropagation();
-    setSelectedUser(selectedUser?.id === user.id ? null : user);
-  };
-
-  const handleDelete = (userId) => {
-    if (window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
-      // Здесь будет логика удаления пользователя (пока заглушка)
-      console.log('Удаление пользователя с ID:', userId);
-      // После успешного удаления обычно фильтруют список:
-      // setUsers(prev => prev.filter(u => u.id !== userId));
+      if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+      const data = await response.json();
+      setUsers(data.users || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setSelectedUser(null);
   };
 
-  const handleOpen = (userId) => {
-    // Здесь будет логика открытия деталей пользователя
-    console.log('Открытие профиля пользователя с ID:', userId);
-    setSelectedUser(null);
+  useEffect(() => { fetchUsers(); }, []);
+
+  const handleCreateUser = async (userData) => {
+    try {
+      const response = await fetch('https://localhost:7204/api/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+      if (response.ok) {
+        setIsModalOpen(false);
+        fetchUsers();
+      } else {
+        throw new Error('Не удалось создать пользователя');
+      }
+    } catch (err) {
+      alert(`Ошибка создания: ${err.message}`);
+    }
   };
 
-  if (loading) {
-    return <h2 className="content">Загрузка списка пользователей...</h2>;
-  }
+  const handleUpdateUser = async (id, userData) => {
+    try {
+      const response = await fetch(`https://localhost:7204/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+      if (response.ok) {
+        setIsModalOpen(false);
+        fetchUsers();
+      } else {
+        throw new Error('Не удалось обновить пользователя');
+      }
+    } catch (err) {
+      alert(`Ошибка обновления: ${err.message}`);
+    }
+  };
 
-  if (error) {
-    return <h2 className="content auth-error">{error}</h2>;
-  }
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
+    try {
+      const response = await fetch(`https://localhost:7204/api/users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setUsers(users.filter(user => user.id !== id));
+      } else {
+        throw new Error('Не удалось удалить пользователя');
+      }
+    } catch (err) {
+      alert(`Ошибка удаления: ${err.message}`);
+    }
+  };
 
-  const sessionId = localStorage.getItem('sessionId');
-  if (!sessionId) {
-    return (
-      <div className="content" style={{ textAlign: 'center', padding: '2rem' }}>
-        <h2>Необходимо авторизоваться</h2>
-        <p>Пожалуйста, войдите в систему для просмотра списка пользователей.</p>
-        <Link to="/auth" className="auth-button" style={{ display: 'inline-block', marginTop: '1rem' }}>
-          Перейти к авторизации
-        </Link>
-      </div>
-    );
-  }
+  const openCreateModal = () => {
+    setModalMode('create');
+    setCurrentUser(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (user) => {
+    setModalMode('edit');
+    setCurrentUser(user);
+    setIsModalOpen(true);
+  };
+
+  if (loading) return <h2 className="content">Загрузка...</h2>;
+  if (error) return <h2 className="content auth-error">{error}</h2>;
 
   return (
     <div className="content">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h2>Список пользователей</h2>
-        <button 
-          onClick={() => {
-            localStorage.removeItem('sessionId');
-            window.location.reload();
-          }}
-          className="auth-button" 
-          style={{ backgroundColor: '#d32f2f' }}
-        >
-          Выйти
+        <button onClick={openCreateModal} className="auth-button">
+          Добавить пользователя
         </button>
       </div>
 
       {users.length === 0 ? (
-        <p>Пользователи не найдены.</p>
+        <p>Нет пользователей.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {users.map(user => (
-            <div 
-              key={user.id}
-              style={{
-                position: 'relative',
-                padding: '1.25rem',
-                border: '1px solid #e0e0e0',
-                borderRadius: '12px',
-                backgroundColor: '#131111ff',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                transition: 'box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'}
-            >
-              <div>
-                <div><strong>ID:</strong> {user.id}</div>
-                <div><strong>Логин:</strong> {user.login}</div>
-                <div><strong>Email:</strong> {user.email}</div>
-                <div><strong>Дата создания:</strong> {new Date(user.createdAt).toLocaleDateString('ru-RU')}</div>
-              </div>
-              <button 
-                onClick={(e) => handleToggleMenu(user, e)}
-                aria-label="Действия"
-                style={{ 
-                  padding: '0.5rem', 
-                  cursor: 'pointer',
-                  background: '#5e192aff',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              >
-                ⋮
-              </button>
-
-              {/* Контекстное меню */}
-              {selectedUser?.id === user.id && (
-                <div 
-                  ref={menuRef}
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '0.5rem',
-                    backgroundColor: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    zIndex: 1000,
-                    minWidth: '140px',
-                    overflow: 'hidden'
-                  }}
-                >
-                  <button
-                    onClick={() => handleOpen(user.id)}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem'
-                    }}
-                  >
-                    Открыть
+        <table className="users-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Логин</th>
+              <th>Email</th>
+              <th>Роль</th>
+              <th>Провайдер</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(user => (
+              <tr key={user.id}>
+                <td>{user.id}</td>
+                <td>{user.login}</td>
+                <td>{user.email}</td>
+                <td>{user.role?.name || 'N/A'}</td>
+                <td>{user.provider}</td>
+                <td>
+                  <button onClick={() => openEditModal(user)} style={{ marginRight: '0.5rem' }}>
+                    Редактировать
                   </button>
-                  <hr style={{ margin: 0, borderColor: '#eee' }} />
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      color: '#d32f2f'
-                    }}
-                  >
+                  <button onClick={() => handleDeleteUser(user.id)} style={{ backgroundColor: '#d32f2f' }}>
                     Удалить
                   </button>
-                </div>
-              )}
-            </div>
-          ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>{modalMode === 'create' ? 'Создать пользователя' : 'Редактировать пользователя'}</h3>
+            <UserModalForm
+              mode={modalMode}
+              user={currentUser}
+              onClose={() => setIsModalOpen(false)}
+              onCreate={handleCreateUser}
+              onUpdate={handleUpdateUser}
+            />
+          </div>
         </div>
       )}
     </div>
+  );
+};
+
+const UserModalForm = ({ mode, user, onClose, onCreate, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    login: user?.login || '',
+    email: user?.email || '',
+    password: ''
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (mode === 'create') {
+      onCreate(formData);
+    } else {
+      onUpdate(user.id, formData);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>Логин:</label>
+        <input
+          type="text"
+          name="login"
+          value={formData.login}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <div>
+        <label>Email:</label>
+        <input
+          type="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <div>
+        <label>Пароль {mode === 'edit' ? '(оставьте пустым, чтобы не менять)' : ''}:</label>
+        <input
+          type="password"
+          name="password"
+          value={formData.password}
+          onChange={handleChange}
+        />
+      </div>
+      <div>
+        <button type="submit">
+          {mode === 'create' ? 'Создать' : 'Сохранить'}
+        </button>
+        <button type="button" onClick={onClose}>Отмена</button>
+      </div>
+    </form>
   );
 };
 

@@ -2,15 +2,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// Принимаем пропс onAuthChange от App.js
 const AuthPage = ({ onAuthChange }) => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Вместо локального состояния, просто читаем из localStorage для рендера
-  const isAuthenticated = !!localStorage.getItem('sessionId');
+  // --- ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ: JWT-токен ---
+  const isAuthenticated = !!localStorage.getItem('token');
+
+  useEffect(() => {
+    // Если пользователь уже авторизован, перенаправляем
+    if (isAuthenticated) {
+      navigate('/users', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -18,19 +24,15 @@ const AuthPage = ({ onAuthChange }) => {
     if (error) setError('');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('sessionId');
-    // Сообщаем родительскому компоненту (App.js) об изменении
-    if (onAuthChange) onAuthChange();
-  };
-
+  // --- Обработчик классического входа ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await fetch('https://localhost:7507/api/auth/login', {
+      // Отправляем запрос на ваш AuthService
+      const response = await fetch('https://localhost:7204/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -41,7 +43,7 @@ const AuthPage = ({ onAuthChange }) => {
 
       if (response.status === 401) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Неверный логин или пароль');
+        throw new Error(errorData.error || 'Неверный логин или пароль');
       }
 
       if (!response.ok) {
@@ -49,12 +51,11 @@ const AuthPage = ({ onAuthChange }) => {
       }
 
       const data = await response.json();
-      if (!data?.sessionId) {
-        throw new Error('Сервер не вернул токен сессии');
+      if (!data?.token) {
+        throw new Error('Сервер не вернул JWT-токен');
       }
 
-      localStorage.setItem('sessionId', data.sessionId);
-      // Сообщаем родительскому компоненту об изменении
+      localStorage.setItem('token', data.token);
       if (onAuthChange) onAuthChange();
       navigate('/users', { replace: true });
 
@@ -66,6 +67,12 @@ const AuthPage = ({ onAuthChange }) => {
     }
   };
 
+  // --- Обработчик входа через Google ---
+  const handleGoogleLogin = () => {
+    // Перенаправляем на ваш бэкенд для начала OAuth-флоу
+    window.location.href = 'https://localhost:7204/login-google';
+  };
+
   if (isAuthenticated) {
     return (
       <div className="auth-container">
@@ -73,7 +80,10 @@ const AuthPage = ({ onAuthChange }) => {
           <h2>Вы уже авторизованы!</h2>
           <p>Ваш сеанс активен.</p>
           <button 
-            onClick={handleLogout} 
+            onClick={() => {
+              localStorage.removeItem('token');
+              if (onAuthChange) onAuthChange();
+            }}
             className="auth-button" 
             style={{ backgroundColor: '#d32f2f' }}
           >
@@ -89,6 +99,8 @@ const AuthPage = ({ onAuthChange }) => {
       <div className="auth-card">
         <h2>Вход в систему</h2>
         {error && <div className="auth-error">{error}</div>}
+        
+        {/* Форма классического входа */}
         <form onSubmit={handleSubmit} className="auth-form">
           <input name="username" placeholder="Логин" onChange={handleChange} required />
           <input name="password" type="password" placeholder="Пароль" onChange={handleChange} required />
@@ -96,6 +108,27 @@ const AuthPage = ({ onAuthChange }) => {
             {isLoading ? 'Вход...' : 'Войти'}
           </button>
         </form>
+
+        {/* Разделитель */}
+        <div style={{ textAlign: 'center', margin: '1rem 0', color: '#888' }}>или</div>
+
+        {/* Кнопка входа через Google */}
+        <button 
+          type="button"
+          onClick={handleGoogleLogin}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            backgroundColor: '#4285f4',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '1rem'
+          }}
+        >
+          Войти через Google
+        </button>
       </div>
     </div>
   );

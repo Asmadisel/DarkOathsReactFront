@@ -5,19 +5,25 @@ import Articles from './pages/Articles';
 import Bestiary from './pages/Bestiary';
 import AuthPage from './pages/Auth';
 import UsersListPage from './pages/UsersListPage';
+import AuthSuccessPage from './pages/AuthSuccessPage';
+import UserMenu from './UserMenu'; // <-- Исправлен путь к компоненту
 import './App.css';
+import './UserMenu.css'
 
 function App() {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Функция для проверки статуса авторизации
   const checkAuthStatus = () => {
-    const sessionId = localStorage.getItem('sessionId');
-    setIsAuthenticated(!!sessionId);
+    const token = localStorage.getItem('token');
+    setIsAuthenticated(!!token);
   };
 
-  // Проверяем статус при первой загрузке
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    checkAuthStatus(); // Сразу обновляем состояние
+  };
+
   useEffect(() => {
     checkAuthStatus();
   }, []);
@@ -27,30 +33,34 @@ function App() {
       <div className="app">
         <header className="app-header">
           <img src="/DarkOaths.png" alt="Логотип Тёмных Троп" className="app-logo" />
+          {/* === КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Рендерим UserMenu === */}
+          <UserMenu 
+            isAuthenticated={isAuthenticated} 
+            onLogout={handleLogout} 
+          />
         </header>
         
-        <div className="checkbox-control">
-          <label>
-            <input
-              type="checkbox"
-              checked={isMenuVisible}
-              onChange={(e) => setIsMenuVisible(e.target.checked)}
-            />
-            Показать полное меню
-          </label>
-        </div>
+        
 
         <nav className="navigation">
           <ul>
             <li><Link to="/">Все статьи</Link></li>
-            <li><Link to="/auth">Авторизация</Link></li>
+            {!isAuthenticated && <li><Link to="/auth">Авторизация</Link></li>}
             {isMenuVisible && (
               <>
                 <li><Link to="/bestiary">Бестиарий</Link></li>
-                {/* Вкладка появляется ТОЛЬКО если пользователь авторизован */}
-                {isAuthenticated && <li><Link to="/users">Пользователи</Link></li>}
               </>
             )}
+            <li className="menu-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={isMenuVisible}
+                  onChange={(e) => setIsMenuVisible(e.target.checked)}
+                />
+                {!isMenuVisible ? 'Открыть полное меню' : 'Скройся!'}
+              </label>
+            </li>
           </ul>
         </nav>
 
@@ -58,9 +68,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Articles />} />
             <Route path="/bestiary" element={<Bestiary />} />
-            {/* Передаём функцию checkAuthStatus в AuthPage */}
             <Route path="/auth" element={<AuthPage onAuthChange={checkAuthStatus} />} />
-            {/* Передаём функцию checkAuthStatus и флаг isAuthenticated в UsersListPage */}
             <Route 
               path="/users" 
               element={
@@ -69,6 +77,10 @@ function App() {
                   onAuthChange={checkAuthStatus} 
                 />
               } 
+            />
+            <Route 
+              path="/auth-success" 
+              element={<AuthSuccessPage onAuthChange={checkAuthStatus} />} 
             />
           </Routes>
         </main>
