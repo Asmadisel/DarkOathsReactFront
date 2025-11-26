@@ -20,7 +20,7 @@ const UsersListPage = ({ isAuthenticated, onAuthChange }) => {
   const fetchUsers = async () => {
     if (!token) return;
     try {
-      const response = await fetch('/api/users', {
+      const response = await fetch('https://localhost:7204/api/users', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.status === 403) {
@@ -42,7 +42,7 @@ const UsersListPage = ({ isAuthenticated, onAuthChange }) => {
 
   const handleCreateUser = async (userData) => {
     try {
-      const response = await fetch('/api/users', {
+      const response = await fetch('https://localhost:7204/api/users', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -63,7 +63,7 @@ const UsersListPage = ({ isAuthenticated, onAuthChange }) => {
 
   const handleUpdateUser = async (id, userData) => {
     try {
-      const response = await fetch(`/api/users/${id}`, {
+      const response = await fetch(`https://localhost:7204/api/users/${id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,7 +85,7 @@ const UsersListPage = ({ isAuthenticated, onAuthChange }) => {
   const handleDeleteUser = async (id) => {
     if (!window.confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
     try {
-      const response = await fetch(`/api/users/${id}`, {
+      const response = await fetch(`https://localhost:7204/api/users/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
