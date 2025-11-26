@@ -32,7 +32,7 @@ const AuthPage = ({ onAuthChange }) => {
 
     try {
       // Отправляем запрос на ваш AuthService
-      const response = await fetch('https://localhost:7204/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,7 +70,7 @@ const AuthPage = ({ onAuthChange }) => {
   // --- Обработчик входа через Google ---
   const handleGoogleLogin = () => {
     // Перенаправляем на ваш бэкенд для начала OAuth-флоу
-    window.location.href = 'https://localhost:7204/login-google';
+    window.location.href = '/login-google';
   };
 
   if (isAuthenticated) {
